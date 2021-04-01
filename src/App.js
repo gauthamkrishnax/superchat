@@ -1,25 +1,118 @@
-import logo from './logo.svg';
 import './App.css';
+import {useState, useRef} from 'react'
+
+import firebase from 'firebase/app';
+import 'firebase/firestore';
+import 'firebase/auth';
+
+import {useAuthState} from 'react-firebase-hooks/auth';
+import {useCollectionData} from 'react-firebase-hooks/firestore'
+
+firebase.initializeApp({
+  apiKey: "AIzaSyDzZleJLF6cWlPcEejgnEW2JrnmeHirai0",
+  authDomain: "superchat-bd08d.firebaseapp.com",
+  projectId: "superchat-bd08d",
+  storageBucket: "superchat-bd08d.appspot.com",
+  messagingSenderId: "172451913645",
+  appId: "1:172451913645:web:6e877dc4f73e5ddaf84b24"
+})
+
+const auth = firebase.auth();
+const firestore = firebase.firestore(); 
 
 function App() {
+
+  const [user] = useAuthState(auth)
+
   return (
     <div className="App">
       <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
+        <h1>SuperChat</h1>
+       <SignOut />
       </header>
+      <section>
+        {user ? <ChatRoom /> : <SignIn />}
+      </section>
     </div>
   );
+}
+
+function SignIn() {
+
+  const signInWithGoogle = () => {
+    const provider = new firebase.auth.GoogleAuthProvider();
+    auth.signInWithPopup(provider)
+  }
+
+  return (
+    <button onClick={signInWithGoogle}>Sign in with Google</button>
+  )
+}
+
+function SignOut() {
+
+  return auth.currentUser && (
+    <button onClick={ () => auth.signOut() } >Sign Out</button>
+  )
+
+}
+
+function ChatRoom () { 
+
+  const dummy = useRef()
+
+  const messagesRef = firestore.collection('messages');
+  const query = messagesRef.orderBy('createdAt').limit(30);
+  const [messages] = useCollectionData(query, {idfield: 'id'})
+  
+  const [formValue, setFormValue] = useState('')
+
+  const sendMessage = async(e) => {
+    e.preventDefault();
+    const { uid, photoURL } = auth.currentUser;
+
+    await messagesRef.add({
+      text: formValue,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      uid,
+      photoURL
+    })
+    setFormValue('')
+
+    dummy.current.scrollIntoView({behavior: 'smooth'})
+
+  }
+
+  return(
+    <>
+    <div>
+      {messages && messages.map(msg => <ChatMessage key={msg.id} message={msg} /> )}
+      <div ref={dummy}></div>
+    </div>
+
+    <form onSubmit={sendMessage}>
+
+      <input value={formValue} onChange={(e)=>{setFormValue(e.target.value)}} placeholder="Type here ..."></input>
+      <button type='submit'>▶</button>
+
+    </form>
+
+    </>
+  )
+
+}
+
+function ChatMessage (props) {
+  const {text,uid, photoURL} = props.message;
+  
+  const messageClass = uid === auth.currentUser.uid ? 'sent' : 'recieved';
+
+  return(
+    <div className={` message ${messageClass}`}>
+      <img src={photoURL} />
+      <p>{text}</p>
+    </div>
+  )
 }
 
 export default App;
